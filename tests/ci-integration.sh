@@ -25,7 +25,7 @@ apt-get update -qq
 if ! apt-get install -y -qq --no-install-recommends \
   asterisk asterisk-modules asterisk-dev libasound2-dev build-essential \
   autoconf automake libtool pkg-config libsqlite3-dev git curl jq sqlite3 patch \
-  kamailio kamailio-sqlite-modules pjsua procps iproute2 psmisc >/tmp/apt-itest.log 2>&1; then
+  kamailio kamailio-sqlite-modules python3 procps iproute2 psmisc >/tmp/apt-itest.log 2>&1; then
   tail -25 /tmp/apt-itest.log
   apt-cache policy pjsua kamailio || true
   die "apt deps install failed"
@@ -112,27 +112,10 @@ ss -lun | grep -q ':5060 ' || { tail -40 /var/log/kamailio/stdout.log; die "kama
 ss -lun | grep -q ':5062 ' || die "asterisk pjsip not on 5062"
 log "kamailio OK"
 
-# ----------------------------------------------------- SIP REGISTER test -----
-log "pjsua: REGISTER as 1001 (digest realm ec20-gw)"
-(
-  sleep 12
-  echo 'call sip:10086@127.0.0.1:5060'
-  sleep 10
-  echo 'im sip:10086@127.0.0.1:5060 hello-itest'
-  sleep 3
-  echo 'q'
-) | timeout 60 pjsua \
-    --null-audio \
-    --id sip:1001@127.0.0.1 \
-    --registrar sip:127.0.0.1:5060 \
-    --realm '*' \
-    --username 1001 --password itestpass123 \
-    --log-file /tmp/pjsua.log --log-level 4 \
-    >/tmp/pjsua.out 2>&1 || true
-
-grep -qi "registration success" /tmp/pjsua.out /tmp/pjsua.log \
-  || { echo "--- pjsua tail ---"; tail -60 /tmp/pjsua.out /tmp/pjsua.log 2>/dev/null; die "REGISTER failed"; }
-log "REGISTER OK (digest auth accepted by kamailio sqlite)"
+# ----------------------------------------------------- SIP probe tests -------
+log "sip_probe: REGISTER (digest) + INVITE + MESSAGE via stdlib UAC"
+python3 "$REPO_DIR/tests/sip_probe.py" || die "sip_probe failed"
+log "REGISTER digest auth accepted by kamailio sqlite"
 
 # --------------------------------------------------- INVITE routing test -----
 sleep 2

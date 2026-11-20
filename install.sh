@@ -71,7 +71,7 @@ while [[ $# -gt 0 ]]; do
     --no-swap)           NO_SWAP="1"; shift ;;
     --no-patch)          NO_PATCH="1"; shift ;;
     --skip-build)        SKIP_BUILD="1"; shift ;;
-    --skip-deploy)       SKIP_BUILD="1"; SKIP_DEPLOY="1"; shift ;;
+    --skip-deploy)       SKIP_DEPLOY="1"; shift ;;
     -h|--help)           usage ;;
     *) err "unknown arg: $1"; usage ;;
   esac
@@ -507,7 +507,9 @@ print_report() {
 
 main() {
   [[ "$MODE" == "trim" || "$MODE" == "apt" ]] || { err "--mode must be trim|apt"; exit 1; }
-  if [[ "$SKIP_BUILD" != "1" ]]; then
+  if [[ "$SKIP_BUILD" == "1" ]]; then
+    log "--skip-build: reusing existing asterisk/channels on this machine"
+  else
     setup_swap
     install_packages
     if [[ "$MODE" == "trim" ]]; then
@@ -516,16 +518,14 @@ main() {
       setup_asterisk_apt
     fi
     build_chan_quectel
-  else
-    log "--skip-build: reusing existing asterisk/channels on this machine"
   fi
-  ASTVER="${ASTVER:-$(asterisk -V 2>/dev/null | awk '{print $2}')}"
-  [[ -n "$ASTVER" ]] || { err "cannot detect asterisk version (asterisk -V)"; exit 1; }
-  log "asterisk version: $ASTVER"
   if [[ "$SKIP_DEPLOY" == "1" ]]; then
     log "--skip-deploy: build-only run finished (see docs/CROSS-COMPILE.md for packing)"
     exit 0
   fi
+  ASTVER="${ASTVER:-$(asterisk -V 2>/dev/null | awk '{print $2}')}"
+  [[ -n "$ASTVER" ]] || { err "cannot detect asterisk version (asterisk -V)"; exit 1; }
+  log "asterisk version: $ASTVER"
   probe_devices
   deploy_asterisk_configs
   deploy_kamailio
