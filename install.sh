@@ -222,6 +222,12 @@ build_asterisk_trim() {
   log "compiling Asterisk with -j1 (low RAM; 30-90 min on ARM boards)"
   make -j1
   make install
+  # headers are NOT part of `make install` — third-party modules need them
+  make install-headers || make headers || true
+  test -f /usr/include/asterisk/asterisk.h || {
+    err "asterisk.h missing after install — chan_quectel build would fail"
+    exit 1
+  }
   # systemd unit from contrib
   if [[ -f contrib/systemd/asterisk.service ]]; then
     cp contrib/systemd/asterisk.service /lib/systemd/system/asterisk.service
@@ -341,7 +347,7 @@ CREATE TABLE IF NOT EXISTS version (
   table_name CHAR(64) NOT NULL PRIMARY KEY,
   table_version INTEGER NOT NULL DEFAULT 0
 );
-INSERT OR REPLACE INTO version (table_name, table_version) VALUES ('subscriber', 6);
+INSERT OR REPLACE INTO version (table_name, table_version) VALUES ('subscriber', 7);
 SQL
   sqlite3 /etc/kamailio/kamailio.db "DELETE FROM subscriber;"
   for e in "${EXT_ARR[@]}"; do

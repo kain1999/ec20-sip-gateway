@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS version (
   table_name CHAR(64) NOT NULL PRIMARY KEY,
   table_version INTEGER NOT NULL DEFAULT 0
 );
-INSERT OR REPLACE INTO version (table_name, table_version) VALUES ('subscriber', 6);
+INSERT OR REPLACE INTO version (table_name, table_version) VALUES ('subscriber', 7);
 INSERT INTO subscriber (username,password,domain) VALUES
   ('1001','itestpass123','ec20-gw'),
   ('1002','itestpass123','ec20-gw');
