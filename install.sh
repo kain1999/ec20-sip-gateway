@@ -222,15 +222,15 @@ build_asterisk_trim() {
   log "compiling Asterisk with -j1 (low RAM; 30-90 min on ARM boards)"
   make -j1
   make install
-  # headers are NOT part of `make install` — third-party modules need them
-  make install-headers || make headers || true
+  # headers are NOT reliably installed by asterisk 20's install-headers target
+  make install-headers >/dev/null 2>&1 || make headers >/dev/null 2>&1 || true
   if [[ ! -f /usr/include/asterisk/asterisk.h ]]; then
-    # Asterisk 20's install-headers target is a no-op in some builds; copy by hand
+    log "manual header copy from $AST_SRC_DIR"
     mkdir -p /usr/include/asterisk
-    cp -a include/asterisk/*.h /usr/include/asterisk/
+    cp -f "$AST_SRC_DIR"/include/asterisk/*.h /usr/include/asterisk/
   fi
-  test -f /usr/include/asterisk/asterisk.h || {
-    err "asterisk.h missing after install — chan_quectel build would fail"
+  ls -la /usr/include/asterisk/asterisk.h || {
+    err "asterisk.h missing after header install (src: $AST_SRC_DIR/include/asterisk)"
     exit 1
   }
   # systemd unit from contrib

@@ -120,7 +120,13 @@ log "kamailio OK"
 
 # ----------------------------------------------------- SIP probe tests -------
 log "sip_probe: REGISTER (digest) + INVITE + MESSAGE via stdlib UAC"
-python3 "$REPO_DIR/tests/sip_probe.py" || die "sip_probe failed"
+python3 "$REPO_DIR/tests/sip_probe.py" || {
+  echo "--- kamailio stdout tail (auth debug) ---"
+  tail -40 /var/log/kamailio/stdout.log 2>/dev/null || true
+  echo "--- asterisk messages tail ---"
+  tail -20 /var/log/asterisk/messages 2>/dev/null || true
+  die "sip_probe failed"
+}
 log "REGISTER digest auth accepted by kamailio sqlite"
 
 # --------------------------------------------------- INVITE routing test -----
