@@ -158,8 +158,11 @@ build_asterisk_trim() {
   cd "$AST_SRC_DIR"
 
   log "configure (pjproject bundled)"
+  rm -f /tmp/ast-configure.log
   if ! ./configure --with-pjproject-bundled >> /tmp/ast-configure.log 2>&1; then
-    warn "configure with bundled pjproject failed; falling back to system libpjproject"
+    warn "configure with bundled pjproject failed; tail of /tmp/ast-configure.log:"
+    tail -n 40 /tmp/ast-configure.log || true
+    warn "falling back to system libpjproject"
     apt-get install -y libpjproject-dev || true
     ./configure >> /tmp/ast-configure.log 2>&1
   fi
