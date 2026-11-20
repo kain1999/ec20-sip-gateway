@@ -29,7 +29,6 @@ else
 fi
 if grep -qiE 'ec20|usb-audio' /proc/asound/cards 2>/dev/null; then
   OK "UAC sound card: $(grep -iE 'ec20|usb-audio' /proc/asound/cards | head -n1 | sed 's/^[[:space:]]*//')"
-  alsadev="$(cfg 'alsadev' 2>/dev/null || true)"
   q="$(grep -E '^alsadev' /etc/asterisk/quectel.conf 2>/dev/null | cut -d= -f2-)"
   [[ -n "$q" ]] && OK "quectel.conf alsadev: $q"
 else

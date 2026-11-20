@@ -27,7 +27,7 @@ ENABLE_MISSED_CALL="${ENABLE_MISSED_CALL:-yes}"
 glog() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE" >&2; }
 
 send_dingtalk() {
-  local text="$1" ts sts sign body resp rc
+  local text="$1" ts sign body resp rc
   if [[ "$ENABLE_DINGTALK" == "no" ]]; then return 0; fi
   if [[ "$ENABLE_DINGTALK" == "auto" && -z "$DINGTALK_WEBHOOK" ]]; then return 0; fi
   if [[ -z "$DINGTALK_WEBHOOK" ]]; then glog "dingtalk: webhook empty, skip"; return 1; fi
