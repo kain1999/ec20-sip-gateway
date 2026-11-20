@@ -63,6 +63,20 @@ def tx_until(pred, msg, tries=10, timeout=2):
     return ""
 
 
+def drain():
+    """Discard stale response copies left in the UDP socket buffer."""
+    sock.settimeout(0.3)
+    n = 0
+    while True:
+        try:
+            sock.recvfrom(65535)
+            n += 1
+        except socket.timeout:
+            break
+    sock.settimeout(2)
+    return n
+
+
 def headers(text):
     d = {}
     for line in text.split("\r\n\r\n")[0].splitlines()[1:]:
@@ -135,7 +149,7 @@ def req(method, uri, cseq, extra="", body="", ctype="application/sdp", to_uri=No
 # ---------------------------------------------------------------- 1) REGISTER -
 reg_uri = "sip:%s:%d" % (HOST, PORT)
 r1 = tx_until(lambda t: status(t) in (200, 401),
-              req("REGISTER", reg_uri, 1, "Expires: 300\r\n"))
+              req("REGISTER", reg_uri, 1, "Expires: 300\r\n"), tries=5)
 if not r1:
     fail("REGISTER probe", "no response from kamailio on 5060")
 if status(r1) == 200:
@@ -143,13 +157,16 @@ if status(r1) == 200:
 else:
     auth = (headers(r1).get("www-authenticate") or [""])[0]
     authz = "Authorization: %s\r\n" % digest_resp("REGISTER", reg_uri, auth, "00000001", CNONCE)
+    drain()  # drop stale 401 retransmit copies before starting transaction #2
     r2 = tx_until(lambda t: status(t) in (200, 401, 403),
-                  req("REGISTER", reg_uri, 2, authz + "Expires: 300\r\n"))
-    if status(r2) == 200:
+                  req("REGISTER", reg_uri, 2, authz + "Expires: 300\r\n"), tries=5)
+    st = status(r2)
+    if st == 200:
         ok("REGISTER digest auth -> 200 (realm %s)" % (re.search(r'realm="([^"]+)"', auth).group(1) if auth else "?"))
+    elif st == 401:
+        fail("REGISTER digest auth", "second 401 after auth — digest mismatch or stale packet; challenge=%s" % auth[:150])
     else:
-        fail("REGISTER digest auth",
-             "%s | challenge=%s" % ((r2.splitlines() or ["no resp"])[0], auth[:150]))
+        fail("REGISTER digest auth", "%s | challenge=%s" % ((r2.splitlines() or ["no resp"])[0], auth[:150]))
 
 # ---------------------------------------------------------------- 2) INVITE ---
 inv_uri = "sip:10086@%s:%d" % (HOST, PORT)
@@ -185,6 +202,7 @@ else:
     fail("INVITE", "no response at all — check kamailio auth/dispatcher/asterisk 5062")
 
 # ---------------------------------------------------------------- 3) MESSAGE --
+drain()  # drop INVITE retransmit responses before the MESSAGE transaction
 msg = req("MESSAGE", inv_uri, 4, body="hello-itest", ctype="text/plain")
 r = tx_until(lambda t: 200 <= status(t) < 600, msg)
 if r and status(r) >= 200:

@@ -224,6 +224,11 @@ build_asterisk_trim() {
   make install
   # headers are NOT part of `make install` — third-party modules need them
   make install-headers || make headers || true
+  if [[ ! -f /usr/include/asterisk/asterisk.h ]]; then
+    # Asterisk 20's install-headers target is a no-op in some builds; copy by hand
+    mkdir -p /usr/include/asterisk
+    cp -a include/asterisk/*.h /usr/include/asterisk/
+  fi
   test -f /usr/include/asterisk/asterisk.h || {
     err "asterisk.h missing after install — chan_quectel build would fail"
     exit 1
