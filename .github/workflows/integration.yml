@@ -1,0 +1,44 @@
+name: integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/**'
+      - 'configs/**'
+      - 'install.sh'
+      - 'scripts/**'
+      - '.github/workflows/integration.yml'
+
+jobs:
+  # Full signalling chain on the target OS/arch (ubuntu 20.04, arm64).
+  integration-apt:
+    runs-on: ubuntu-24.04-arm
+    container: ubuntu:20.04
+    steps:
+      - name: bootstrap container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq git ca-certificates curl
+      - uses: actions/checkout@v4
+      - name: run integration test
+        run: bash tests/ci-integration.sh
+
+  # Compile chain: trimmed Asterisk 20 build via install.sh on target OS/arch.
+  build-trim-aarch64:
+    runs-on: ubuntu-24.04-arm
+    container: ubuntu:20.04
+    steps:
+      - name: bootstrap container
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq git ca-certificates curl
+      - uses: actions/checkout@v4
+      - name: build (install.sh --mode trim --no-swap --skip-deploy)
+        run: ./install.sh --mode trim --no-swap --skip-deploy
+      - name: verify artifacts
+        run: |
+          test -f /usr/lib/asterisk/modules/chan_quectel.so
+          /usr/sbin/asterisk -V
+          echo "modules installed: $(ls /usr/lib/asterisk/modules/*.so | wc -l)"
