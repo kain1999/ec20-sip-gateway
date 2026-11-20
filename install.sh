@@ -149,9 +149,11 @@ install_packages() {
 build_asterisk_trim() {
   log "downloading Asterisk 20 source (${ASTERISK_URL})"
   mkdir -p "$SRC_ROOT"
-  curl -fsSL "${CURL_PROXY[@]}" -o "$SRC_ROOT/asterisk-20.tar.gz" "$ASTERISK_URL"
   rm -rf "$SRC_ROOT"/asterisk-20.*
-  tar xzf "$SRC_ROOT/asterisk-20.tar.gz" -C "$SRC_ROOT"
+  # NOTE: keep the tarball name outside the asterisk-20.* glob (self-delete trap)
+  curl -fSL --retry 3 --retry-delay 2 ${CURL_PROXY[@]+"${CURL_PROXY[@]}"} \
+       -o "$SRC_ROOT/asterisk-src.tar.gz" "$ASTERISK_URL"
+  tar xzf "$SRC_ROOT/asterisk-src.tar.gz" -C "$SRC_ROOT"
   AST_SRC_DIR="$(ls -d "$SRC_ROOT"/asterisk-20.* | head -n1)"
   cd "$AST_SRC_DIR"
 
@@ -225,7 +227,7 @@ build_asterisk_trim() {
 
 setup_asterisk_apt() {
   log "using Ubuntu asterisk package (mode=apt)"
-  ASTVER="$(asterisk -V 2>/dev/null | awk '{print $2}')"
+  ASTVER="$(asterisk -V 2>/dev/null | awk '{print $2}' | sed -E 's/[~-].*//')"
 }
 
 # --- stage 3: chan_quectel ----------------------------------------------------
@@ -523,7 +525,7 @@ main() {
     log "--skip-deploy: build-only run finished (see docs/CROSS-COMPILE.md for packing)"
     exit 0
   fi
-  ASTVER="${ASTVER:-$(asterisk -V 2>/dev/null | awk '{print $2}')}"
+  ASTVER="${ASTVER:-$(asterisk -V 2>/dev/null | awk '{print $2}' | sed -E 's/[~-].*//')}"
   [[ -n "$ASTVER" ]] || { err "cannot detect asterisk version (asterisk -V)"; exit 1; }
   log "asterisk version: $ASTVER"
   probe_devices

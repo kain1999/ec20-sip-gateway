@@ -38,7 +38,8 @@ cp "$REPO_DIR"/configs/asterisk/*.conf /etc/asterisk/
 sed -i "s|__AT_PORT__|/dev/ttyUSB2|g; s|__ALSADEV__|plughw:CARD=EC20CEHDLG,DEV=0|g" /etc/asterisk/quectel.conf
 
 # ------------------------------------------------------ chan_quectel build ---
-ASTVER="$(asterisk -V | awk '{print $2}')"
+# Debian builds report "16.2.1~dfsg-2ubuntu1"; chan_quectel wants pure M.m.u
+ASTVER="$(asterisk -V | awk '{print $2}' | sed -E 's/[~-].*//')"
 log "build chan_quectel against asterisk $ASTVER"
 rm -rf /tmp/chan_quectel
 git clone --depth 1 -q https://github.com/IchthysMaranatha/asterisk-chan-quectel.git /tmp/chan_quectel
