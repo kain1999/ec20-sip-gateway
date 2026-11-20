@@ -1,0 +1,15 @@
+[Unit]
+Description=EC20 modem prep (AT+QAUDMOD / QPCMV reset before Asterisk)
+Documentation=file:///opt/ec20-gateway-web/../ec20-sip-gateway/docs/EC20-DEBUG.md
+After=systemd-udev-trigger.service systemd-udevd.service
+Wants=systemd-udev-trigger.service
+Before=asterisk.service
+ConditionPathExists=/dev/ec20-at
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ec20_modem_prep.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

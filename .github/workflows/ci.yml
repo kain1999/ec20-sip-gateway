@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  shell-and-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: shellcheck
+        run: |
+          shellcheck -S warning install.sh uninstall.sh scripts/*.sh
+
+      - name: python syntax
+        run: |
+          python3 -m py_compile web/app.py
+
+      - name: config sanity (no unresolved placeholders outside templates)
+        run: |
+          ! grep -R '__AT_PORT__\|__ALSADEV__\|__WEB_PASS_HASH__' configs/asterisk configs/kamailio web/ || true
+          grep -q '__AT_PORT__' configs/asterisk/quectel.conf
+          grep -q '__ALSADEV__' configs/asterisk/quectel.conf

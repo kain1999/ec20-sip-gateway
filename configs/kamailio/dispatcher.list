@@ -1,0 +1,3 @@
+# ec20-sip-gateway :: dispatcher targets (Asterisk media gateway on loopback)
+# setid destination              flags priority attrs
+1 sip:127.0.0.1:5062

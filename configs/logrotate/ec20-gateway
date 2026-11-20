@@ -1,0 +1,16 @@
+# ec20-gateway :: SD-card friendly rotation (small caps, compress)
+/var/log/kamailio/kamailio.log
+/var/log/asterisk/messages
+/var/log/asterisk/security
+/var/log/ec20-gateway.log
+/var/log/msmtp.log
+{
+    daily
+    maxsize 5M
+    rotate 3
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

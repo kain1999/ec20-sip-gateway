@@ -1,0 +1,7 @@
+--- a/channel.c
++++ b/channel.c
+@@ -317,3 +317,3 @@
+ 	{
+-                if (strcmp(CONF_UNIQ(pvt, quec_uac),"1") == 0) snd_pcm_drop(pvt->icard);
++                if (strcmp(CONF_UNIQ(pvt, quec_uac),"1") == 0) { snd_pcm_drop(pvt->icard); at_enqueue_user_cmd(cpvt, "AT+QPCMV=0"); }
+ 		else mixb_detach(&cpvt->pvt->a_write_mixb, &cpvt->mixstream);

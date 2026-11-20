@@ -1,0 +1,10 @@
+# ec20-sip-gateway :: stable device names for Quectel EC20/EC25 (2c7c:0125)
+# Default EC20 USB composition: 0=diag 1=GPS NMEA 2=AT 3=modem/PPP (+ qmi_wwan)
+# AT port is interface 02 -> /dev/ec20-at (used by chan_quectel data= option)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2c7c", ATTRS{idProduct}=="0125", ATTRS{bInterfaceNumber}=="02", SYMLINK+="ec20-at", MODE="0660", GROUP="dialout"
+
+# modem/PPP port kept for manual AT/PPP debugging
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2c7c", ATTRS{idProduct}=="0125", ATTRS{bInterfaceNumber}=="03", SYMLINK+="ec20-data", MODE="0660", GROUP="dialout"
+
+# diag port (optional, for debugging)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2c7c", ATTRS{idProduct}=="0125", ATTRS{bInterfaceNumber}=="00", SYMLINK+="ec20-diag", MODE="0660", GROUP="dialout"

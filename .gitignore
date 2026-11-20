@@ -1,0 +1,25 @@
+# Build artifacts
+*.o
+*.so
+*.a
+*.la
+*.lo
+*.tar.gz
+*.deb
+usr/src/
+build/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local secrets (never commit real webhook tokens / SMTP passwords)
+*.local
+.env
+etc-template/*.local
+
+# Runtime data
+inbox.jsonl
+*.log

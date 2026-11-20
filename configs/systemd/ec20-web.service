@@ -1,0 +1,18 @@
+[Unit]
+Description=ec20-gateway web panel (Python3 stdlib, zero deps)
+After=asterisk.service kamailio.service
+Wants=asterisk.service kamailio.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/ec20-gateway-web/app.py
+WorkingDirectory=/opt/ec20-gateway-web
+Restart=on-failure
+RestartSec=5
+# panel needs systemctl + asterisk CLI for dashboard actions
+User=root
+# keep the interpreter lean
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+[Install]
+WantedBy=multi-user.target
