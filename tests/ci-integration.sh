@@ -17,11 +17,19 @@ die() { echo "[itest][FATAL] $*" >&2; exit 1; }
 
 # ---------------------------------------------------------------- deps -------
 log "install apt deps"
+# arm64 containers pull from ports.ubuntu.com; make sure universe is enabled
+BASE_URL="$(grep -m1 '^deb ' /etc/apt/sources.list | awk '{print $2}')"
+grep -qE ' focal universe' /etc/apt/sources.list \
+  || echo "deb $BASE_URL focal universe" >> /etc/apt/sources.list
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends \
+if ! apt-get install -y -qq --no-install-recommends \
   asterisk asterisk-modules asterisk-dev libasound2-dev build-essential \
   autoconf automake libtool pkg-config libsqlite3-dev git curl jq sqlite3 patch \
-  kamailio kamailio-sqlite-modules pjsua procps iproute2 psmisc >/dev/null
+  kamailio kamailio-sqlite-modules pjsua procps iproute2 psmisc >/tmp/apt-itest.log 2>&1; then
+  tail -25 /tmp/apt-itest.log
+  apt-cache policy pjsua kamailio || true
+  die "apt deps install failed"
+fi
 
 # ------------------------------------------------- asterisk config deploy ----
 log "deploy asterisk configs (placeholders substituted)"
