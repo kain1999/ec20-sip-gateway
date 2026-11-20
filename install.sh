@@ -242,6 +242,14 @@ build_chan_quectel() {
   cd "$SRC_ROOT/chan_quectel"
   git checkout "${GIT_PROXY_ARGS[@]}" -q "$CHAN_QUECTEL_REF"
 
+  # detect asterisk version ourselves (main() assigns ASTVER later for deploy)
+  ASTVER="$(asterisk -V 2>/dev/null | awk '{print $2}' | sed -E 's/[~-].*//')"
+  if [[ ! "$ASTVER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    err "asterisk -V did not yield M.m.u (raw output: '$(asterisk -V 2>&1 || true)')"
+    exit 1
+  fi
+  log "chan_quectel --with-astversion=$ASTVER"
+
   if [[ "$NO_PATCH" != "1" ]]; then
     if patch -p1 --fuzz=3 -N < "$SCRIPT_DIR/patches/0001-quectel-reset-qpcmv-on-hangup.patch" \
          && grep -q 'AT+QPCMV=0' channel.c; then
@@ -329,6 +337,11 @@ CREATE TABLE IF NOT EXISTS subscriber (
   ha1 CHAR(32) NOT NULL DEFAULT '',
   email_address CHAR(128) NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS version (
+  table_name CHAR(64) NOT NULL PRIMARY KEY,
+  table_version INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR REPLACE INTO version (table_name, table_version) VALUES ('subscriber', 6);
 SQL
   sqlite3 /etc/kamailio/kamailio.db "DELETE FROM subscriber;"
   for e in "${EXT_ARR[@]}"; do
