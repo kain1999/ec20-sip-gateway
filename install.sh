@@ -222,17 +222,18 @@ build_asterisk_trim() {
   log "compiling Asterisk with -j1 (low RAM; 30-90 min on ARM boards)"
   make -j1
   make install
-  # headers are NOT reliably installed by asterisk 20's install-headers target
-  make install-headers >/dev/null 2>&1 || make headers >/dev/null 2>&1 || true
+  # headers: asterisk 20's install-headers target may be a no-op; force-copy
+  make install-headers >/dev/null 2>&1 || true
   if [[ ! -f /usr/include/asterisk/asterisk.h ]]; then
     log "manual header copy from $AST_SRC_DIR"
     mkdir -p /usr/include/asterisk
-    cp -f "$AST_SRC_DIR"/include/asterisk/*.h /usr/include/asterisk/
+    find "$AST_SRC_DIR/include/asterisk" -maxdepth 1 -name '*.h' -print \
+      -exec cp -f {} /usr/include/asterisk/ \; | tail -n 3
   fi
-  ls -la /usr/include/asterisk/asterisk.h || {
-    err "asterisk.h missing after header install (src: $AST_SRC_DIR/include/asterisk)"
+  if [[ ! -f /usr/include/asterisk/asterisk.h ]]; then
+    err "asterisk.h still missing — see find/cp output above"
     exit 1
-  }
+  fi
   # systemd unit from contrib
   if [[ -f contrib/systemd/asterisk.service ]]; then
     cp contrib/systemd/asterisk.service /lib/systemd/system/asterisk.service

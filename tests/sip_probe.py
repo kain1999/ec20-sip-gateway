@@ -99,11 +99,11 @@ def digest_resp(method, uri, hdr, nc, cnonce):
         return m.group(1) if m else ""
 
     realm, nonce = grab("realm"), grab("nonce")
-    qop = grab("qop") or "auth"
+    qop = grab("qop")  # empty when the server issues a legacy (RFC2069) challenge
     opaque = grab("opaque")
     ha1 = hashlib.md5(("%s:%s:%s" % (USER, realm, PASS)).encode()).hexdigest()
     ha2 = hashlib.md5(("%s:%s" % (method, uri)).encode()).hexdigest()
-    if qop.lower() == "auth":
+    if qop:
         resp = hashlib.md5(("%s:%s:%s:%s:auth:%s" % (ha1, nonce, nc, cnonce, ha2)).encode()).hexdigest()
         out = ('Digest username="%s", realm="%s", nonce="%s", uri="%s", '
                'cnonce="%s", nc=%s, qop=auth, response="%s", algorithm=MD5'
