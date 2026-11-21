@@ -50,7 +50,12 @@ def fail(name, detail=""):
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind(("127.0.0.1", 0))
+sock.bind(("0.0.0.0", 0))
+try:
+    sock.connect((HOST, PORT))          # pins the real local source address
+except OSError:
+    pass
+LIP = sock.getsockname()[0]
 LPORT = sock.getsockname()[1]
 sock.settimeout(2)
 
@@ -145,14 +150,14 @@ def req(method, uri, cseq, extra="", body="", ctype="application/sdp", to_uri=No
     to_uri = to_uri or uri
     branch = "z9hG4bK" + os.urandom(5).hex()
     m = ("%s %s SIP/2.0\r\n"
-         "Via: SIP/2.0/UDP 127.0.0.1:%d;branch=%s\r\n"
+         "Via: SIP/2.0/UDP %s:%d;branch=%s\r\n"
          "From: <sip:%s@%s>;tag=%s\r\n"
          "To: <%s>\r\n"
          "Call-ID: %s\r\n"
          "CSeq: %d %s\r\n"
          "Max-Forwards: 70\r\n"
-         "Contact: <sip:%s@127.0.0.1:%d>\r\n"
-         % (method, uri, LPORT, branch, USER, HOST, TAG, to_uri, CID, cseq, method, USER, LPORT))
+         "Contact: <sip:%s@%s:%d>\r\n"
+         % (method, uri, LIP, LPORT, branch, USER, HOST, TAG, to_uri, CID, cseq, method, USER, LIP, LPORT))
     m += extra
     if body:
         m += "Content-Type: %s\r\nContent-Length: %d\r\n\r\n%s" % (ctype, len(body), body)
