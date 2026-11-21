@@ -266,6 +266,67 @@ def write_ext_ring(val):
     return run_cmd(["asterisk", "-rx", "dialplan reload"], timeout=30)[0]
 
 
+# --------------------------------------------------------------- SMTP/msmtp --
+MSMTP_PATH = "/etc/msmtprc"
+SMTP_HOST_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.\-]{1,63}$")
+SMTP_MAIL_RE = re.compile(r"^[A-Za-z0-9@._+\-]{1,64}$")
+SMTP_PASS_RE = re.compile(r"^[^\r\n\"';]{1,64}$")
+
+
+def read_msmtp():
+    """Parse existing /etc/msmtprc; password is never returned to the page."""
+    vals = {"host": "", "port": "", "from": "", "user": "", "tls_starttls": "on"}
+    try:
+        with open(MSMTP_PATH, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                for key in ("host", "port", "from", "user"):
+                    m = re.match(r"^%s\s+(\S+)$" % key, line)
+                    if m:
+                        vals[key] = m.group(1)
+                if re.match(r"^tls_starttls\s+off", line):
+                    vals["tls_starttls"] = "off"
+    except FileNotFoundError:
+        pass
+    return vals
+
+
+def read_msmtp_password():
+    """Return the stored SMTP password (used only to keep it when blank)."""
+    try:
+        with open(MSMTP_PATH, "r", encoding="utf-8") as fh:
+            for line in fh:
+                m = re.match(r"^password\s+(\S+)$", line.strip())
+                if m:
+                    return m.group(1)
+    except FileNotFoundError:
+        pass
+    return ""
+
+
+def write_msmtp(host, port, frm, user, pwd, starttls):
+    tpl = (
+        "defaults\n"
+        "auth           on\n"
+        "tls            on\n"
+        "tls_starttls   %s\n"
+        "tls_trust_file /etc/ssl/certs/ca-certificates.crt\n"
+        "logfile        /var/log/msmtp.log\n"
+        "\n"
+        "account        default\n"
+        "host           %s\n"
+        "port           %s\n"
+        "from           %s\n"
+        "user           %s\n"
+        "password       %s\n"
+    ) % ("on" if starttls else "off", host, port, frm, user, pwd)
+    tmp = MSMTP_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(tpl)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, MSMTP_PATH)
+
+
 # -------------------------------------------------------------------- views --
 STYLE = """
   body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
@@ -415,6 +476,10 @@ def page_config(sess, flash="", is_err=False):
                 % (html.escape(label), key, html.escape(cfg(key)), size,
                    html.escape(placeholder)))
 
+    mv = read_msmtp()
+    ssl_sel = " selected" if mv.get("tls_starttls", "on") == "off" else ""
+    stls_sel = "" if mv.get("tls_starttls", "on") == "off" else " selected"
+
     body = """
 <div class="card">
   <h2>推送与 modem 配置（保存到 /etc/ec20-gateway.conf）</h2>
@@ -433,7 +498,32 @@ def page_config(sess, flash="", is_err=False):
       <select name='QAUDMOD_MODE'>%s</select></label><br><br>
     <button type="submit">保存</button>
   </form>
-  <p class="muted">邮件 SMTP 账号在 /etc/msmtprc（面板不改密码，改完配置记得测试）。</p>
+  <p class="muted">邮件 SMTP 账号在下方「邮件推送（SMTP）」卡片配置。</p>
+</div>
+
+<div class="card">
+  <h2>邮件推送（SMTP / msmtp）</h2>
+  <form method="post" action="/config/smtp">
+    %s
+    <label>SMTP 服务器<br><input name="smtp_host" value="%s" size="30" placeholder="smtp.qq.com" required></label><br><br>
+    <label>端口<br><input name="smtp_port" value="%s" size="6" placeholder="465" required></label>
+    <label>TLS 模式
+      <select name="smtp_tls">
+        <option value="ssl"%s>SSL（465 隐式 TLS）</option>
+        <option value="starttls"%s>STARTTLS（587）</option>
+      </select></label><br><br>
+    <label>发件人地址<br><input name="smtp_from" value="%s" size="30" placeholder="user@example.com"></label><br><br>
+    <label>SMTP 登录账号<br><input name="smtp_user" value="%s" size="30" placeholder="user@example.com" required></label><br><br>
+    <label>SMTP 密码<br><input type="password" name="smtp_pass" size="30" placeholder="留空 = 保留现有密码"></label><br><br>
+    <button type="submit">保存 SMTP 配置</button>
+  </form>
+  <form method="post" action="/action" style="margin-top:10px">
+    %s
+    <input type="hidden" name="action" value="test_email">
+    <button type="submit">发送测试邮件</button>
+    <span class="muted">（先保存，再测试；收件人 = 上方「EMAIL_TO」）</span>
+  </form>
+  <p class="muted">保存即写入 /etc/msmtprc（权限 600）；密码出于安全不回显，留空则保留现有密码。</p>
 </div>
 
 <div class="card">
@@ -459,6 +549,14 @@ def page_config(sess, flash="", is_err=False):
             n, " selected" if n == cfg("QAUDMOD_MODE", "3") else "",
             {0: "0 handset(EC/NS)", 1: "1 headset", 2: "2 speaker", 3: "3 raw PCM(推荐)"}[n])
             for n in (0, 1, 2, 3)),
+        csrf_input(sess),
+        html.escape(mv.get("host", "")),
+        html.escape(mv.get("port", "")),
+        ssl_sel,
+        stls_sel,
+        html.escape(mv.get("from", "")),
+        html.escape(mv.get("user", "")),
+        csrf_input(sess),
         csrf_input(sess),
     )
     if flash:
@@ -696,6 +794,34 @@ class Handler(BaseHTTPRequestHandler):
             save_config(CFG, updates)
             CFG = load_config()
             self._send(200, page_config(sess, "已保存"))
+            return
+
+        if path == "/config/smtp":
+            host = form.get("smtp_host", [""])[0].strip()
+            port = form.get("smtp_port", [""])[0].strip() or "465"
+            frm = form.get("smtp_from", [""])[0].strip()
+            user = form.get("smtp_user", [""])[0].strip()
+            pwd = form.get("smtp_pass", [""])[0]
+            tls = form.get("smtp_tls", ["ssl"])[0]
+            if not SMTP_HOST_RE.match(host):
+                self._send(200, page_config(sess, "SMTP 服务器域名不合法", is_err=True))
+                return
+            if not port.isdigit() or not (1 <= int(port) <= 65535):
+                self._send(200, page_config(sess, "端口不合法（1-65535）", is_err=True))
+                return
+            if frm and not SMTP_MAIL_RE.match(frm):
+                self._send(200, page_config(sess, "发件人地址不合法", is_err=True))
+                return
+            if not SMTP_MAIL_RE.match(user):
+                self._send(200, page_config(sess, "SMTP 账号不合法", is_err=True))
+                return
+            if pwd and not SMTP_PASS_RE.match(pwd):
+                self._send(200, page_config(sess, "SMTP 密码含非法字符（禁止换行/引号/分号）", is_err=True))
+                return
+            if not pwd:
+                pwd = read_msmtp_password()
+            write_msmtp(host, port, frm or user, user, pwd, tls == "starttls")
+            self._send(200, page_config(sess, "SMTP 配置已写入 /etc/msmtprc（可用下方按钮发送测试邮件，收件人=EMAIL_TO）"))
             return
 
         if path == "/config/passwd":
