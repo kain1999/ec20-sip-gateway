@@ -157,6 +157,7 @@ if status(r1) == 200:
 else:
     auth = (headers(r1).get("www-authenticate") or [""])[0]
     authz = "Authorization: %s\r\n" % digest_resp("REGISTER", reg_uri, auth, "00000001", CNONCE)
+    print("[probe] authz header: %s" % authz.strip())
     drain()  # drop stale 401 retransmit copies before starting transaction #2
     r2 = tx_until(lambda t: status(t) in (200, 401, 403),
                   req("REGISTER", reg_uri, 2, authz + "Expires: 300\r\n"), tries=5)

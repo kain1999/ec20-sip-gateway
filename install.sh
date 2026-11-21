@@ -227,11 +227,13 @@ build_asterisk_trim() {
   if [[ ! -f /usr/include/asterisk/asterisk.h ]]; then
     log "manual header copy from $AST_SRC_DIR"
     mkdir -p /usr/include/asterisk
-    find "$AST_SRC_DIR/include/asterisk" -maxdepth 1 -name '*.h' -print \
-      -exec cp -f {} /usr/include/asterisk/ \; | tail -n 3
+    cp -f "$AST_SRC_DIR"/include/asterisk/*.h /usr/include/asterisk/
+    log "diag: $(ls /usr/include/asterisk/ 2>/dev/null | wc -l) files now in /usr/include/asterisk"
+    ls -la /usr/include/asterisk/asterisk.h || true
+    log "diag: other asterisk.h locations: $(find / -name 'asterisk.h' -not -path '*/usr/src/*' 2>/dev/null | head -5)"
   fi
   if [[ ! -f /usr/include/asterisk/asterisk.h ]]; then
-    err "asterisk.h still missing — see find/cp output above"
+    err "asterisk.h still missing — see diag above"
     exit 1
   fi
   # systemd unit from contrib

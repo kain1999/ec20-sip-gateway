@@ -110,19 +110,21 @@ asterisk -rx "pjsip show endpoints" | grep -q "kamailio-trunk" || die "pjsip end
 log "asterisk OK (chan_quectel loaded, pjsip endpoint present)"
 
 log "start kamailio"
-nohup kamailio -f /etc/kamailio/kamailio.cfg -m 48 -M 8 -E \
+nohup kamailio -f /etc/kamailio/kamailio.cfg -m 48 -M 8 -E -d -d \
   >/var/log/kamailio/stdout.log 2>&1 &
 sleep 6
 pgrep -x kamailio >/dev/null || { tail -40 /var/log/kamailio/stdout.log; die "kamailio failed to start"; }
 ss -lun | grep -q ':5060 ' || { tail -40 /var/log/kamailio/stdout.log; die "kamailio not on 5060"; }
 ss -lun | grep -q ':5062 ' || die "asterisk pjsip not on 5062"
-log "kamailio OK"
+log "kamailio OK (debug=3)"
 
 # ----------------------------------------------------- SIP probe tests -------
 log "sip_probe: REGISTER (digest) + INVITE + MESSAGE via stdlib UAC"
 python3 "$REPO_DIR/tests/sip_probe.py" || {
   echo "--- kamailio stdout tail (auth debug) ---"
-  tail -40 /var/log/kamailio/stdout.log 2>/dev/null || true
+  tail -60 /var/log/kamailio/stdout.log 2>/dev/null || true
+  echo "--- sqlite db contents ---"
+  sqlite3 /etc/kamailio/kamailio.db "select * from version; select id,username,password,domain from subscriber;" 2>/dev/null || true
   echo "--- asterisk messages tail ---"
   tail -20 /var/log/asterisk/messages 2>/dev/null || true
   die "sip_probe failed"
