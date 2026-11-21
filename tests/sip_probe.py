@@ -95,7 +95,7 @@ def status(text):
 
 def digest_resp(method, uri, hdr, nc, cnonce):
     def grab(k):
-        m = re.search(r'(?:^|,\s*)%s="?([^",;\s]+)"?' % k, hdr)
+        m = re.search(r'(?:^|[,\s])%s="?([^",;\s]+)"?' % k, hdr)
         return m.group(1) if m else ""
 
     realm, nonce = grab("realm"), grab("nonce")

@@ -224,6 +224,10 @@ build_asterisk_trim() {
   make install
   # headers: asterisk 20's install-headers target may be a no-op; force-copy
   make install-headers >/dev/null 2>&1 || true
+  # asterisk 20 puts asterisk.h at $includedir root, third-party builds expect it inside /usr/include/asterisk
+  if [[ -f /usr/include/asterisk.h && ! -f /usr/include/asterisk/asterisk.h ]]; then
+    mv /usr/include/asterisk.h /usr/include/asterisk/asterisk.h
+  fi
   if [[ ! -f /usr/include/asterisk/asterisk.h ]]; then
     log "manual header copy from $AST_SRC_DIR"
     mkdir -p /usr/include/asterisk
