@@ -24,6 +24,21 @@ PORT = 5060
 USER = "1001"
 PASS = "itestpass123"
 
+# CLI overrides: --host H --port P --user U --password W
+_a = sys.argv[1:]
+_i = 0
+while _i < len(_a):
+    if _a[_i] == "--host" and _i + 1 < len(_a):
+        HOST = _a[_i + 1]; _i += 2
+    elif _a[_i] == "--port" and _i + 1 < len(_a):
+        PORT = int(_a[_i + 1]); _i += 2
+    elif _a[_i] == "--user" and _i + 1 < len(_a):
+        USER = _a[_i + 1]; _i += 2
+    elif _a[_i] == "--password" and _i + 1 < len(_a):
+        PASS = _a[_i + 1]; _i += 2
+    else:
+        _i += 1
+
 
 def ok(name):
     print("[probe] PASS: %s" % name)
