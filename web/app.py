@@ -409,7 +409,7 @@ def page_logs(sel):
     return layout("logs", body)
 
 
-def page_config(sess):
+def page_config(sess, flash="", is_err=False):
     def field(key, label, placeholder="", size=50, kind="text"):
         return ("<label>%s<br><input name='%s' value='%s' size='%d' placeholder='%s'></label><br><br>"
                 % (html.escape(label), key, html.escape(cfg(key)), size,
@@ -435,6 +435,18 @@ def page_config(sess):
   </form>
   <p class="muted">邮件 SMTP 账号在 /etc/msmtprc（面板不改密码，改完配置记得测试）。</p>
 </div>
+
+<div class="card">
+  <h2>修改面板登录密码</h2>
+  <form method="post" action="/config/passwd">
+    %s
+    <input type="password" name="oldpass" placeholder="当前密码" required><br><br>
+    <input type="password" name="newpass" placeholder="新密码（至少 6 位）" minlength="6" required><br><br>
+    <input type="password" name="newpass2" placeholder="再输一次新密码" required><br><br>
+    <button type="submit">修改密码</button>
+  </form>
+  <p class="muted">修改后所有已登录会话立即失效（包括本页），需用新密码重新登录。</p>
+</div>
 """ % (
         csrf_input(sess),
         "checked" if cfg("ENABLE_DINGTALK", "auto") in ("yes", "auto") and cfg("DINGTALK_WEBHOOK") else "",
@@ -447,7 +459,11 @@ def page_config(sess):
             n, " selected" if n == cfg("QAUDMOD_MODE", "3") else "",
             {0: "0 handset(EC/NS)", 1: "1 headset", 2: "2 speaker", 3: "3 raw PCM(推荐)"}[n])
             for n in (0, 1, 2, 3)),
+        csrf_input(sess),
     )
+    if flash:
+        cls = "flash errflash" if is_err else "flash"
+        body = "<div class='%s'>%s</div>" % (cls, html.escape(flash)) + body
     return layout("config", body)
 
 
@@ -584,6 +600,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- POST ---------------------------------------------------------------
     def do_POST(self):
+        global CFG
         path = urlsplit(self.path).path
         form = self._form()
 
@@ -676,10 +693,29 @@ class Handler(BaseHTTPRequestHandler):
                 "ENABLE_MISSED_CALL": yn("ENABLE_MISSED_CALL", "no"),
                 "QAUDMOD_MODE": form.get("QAUDMOD_MODE", ["3"])[0],
             }
-            global CFG
             save_config(CFG, updates)
             CFG = load_config()
-            self._send(200, page_config(sess) + "<div class='flash'>已保存</div>")
+            self._send(200, page_config(sess, "已保存"))
+            return
+
+        if path == "/config/passwd":
+            oldpw = form.get("oldpass", [""])[0]
+            newpw = form.get("newpass", [""])[0]
+            newpw2 = form.get("newpass2", [""])[0]
+            if not login_ok(oldpw):
+                self._send(200, page_config(sess, "当前密码错误", is_err=True))
+                return
+            if len(newpw) < 6:
+                self._send(200, page_config(sess, "新密码至少 6 位", is_err=True))
+                return
+            if newpw != newpw2:
+                self._send(200, page_config(sess, "两次新密码不一致", is_err=True))
+                return
+            save_config(CFG, {"WEB_PASS_HASH":
+                              hashlib.sha256(newpw.encode("utf-8", "replace")).hexdigest()})
+            CFG = load_config()
+            SESSIONS.clear()  # kill every session: re-login with the new password
+            self._send(200, page_login("面板密码已修改，请用新密码重新登录"))
             return
 
         if path == "/action":
