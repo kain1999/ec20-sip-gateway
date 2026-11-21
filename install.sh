@@ -554,6 +554,8 @@ print_report() {
 
 main() {
   [[ "$MODE" == "trim" || "$MODE" == "apt" ]] || { err "--mode must be trim|apt"; exit 1; }
+  # generate passwords BEFORE deploy_kamailio inserts subscriber rows
+  if [[ -z "$SIP_PASS" ]]; then SIP_PASS="$(openssl rand -hex 12)"; fi
   if [[ "$SKIP_BUILD" == "1" ]]; then
     log "--skip-build: reusing existing asterisk/channels on this machine"
   else

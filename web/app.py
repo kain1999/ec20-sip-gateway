@@ -21,6 +21,7 @@ import html
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -29,6 +30,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 CONF_PATH = "/etc/ec20-gateway.conf"
+KAM_DB_PATH = "/etc/kamailio/kamailio.db"
+EXT_CONF_PATH = "/etc/asterisk/extensions.conf"
+EXT_NUM_RE = re.compile(r"^1[0-9]{3}$")          # kamailio cfg routes ^1[0-9]{3}$
+EXT_PWD_RE = re.compile(r"^[A-Za-z0-9]{6,32}$")
+EXT_RING_RE = re.compile(r"^(1[0-9]{3})(&1[0-9]{3})*$")
 LOG_CANDIDATES = [
     ("gateway", "/var/log/ec20-gateway.log"),
     ("asterisk", "/var/log/asterisk/messages"),
@@ -167,6 +173,99 @@ def read_inbox(limit=100):
     return items[-limit:][::-1]  # newest first
 
 
+# ---------------------------------------------------------------- extensions --
+def ext_list():
+    """rows: [(username, password, domain)] or None on db error."""
+    try:
+        conn = sqlite3.connect(KAM_DB_PATH, timeout=5)
+        rows = conn.execute(
+            "select username,password,domain from subscriber order by username").fetchall()
+        conn.close()
+        return rows
+    except sqlite3.Error as exc:
+        return [("db error: %s" % exc, "", "")]
+
+
+def ext_exists(user):
+    conn = sqlite3.connect(KAM_DB_PATH, timeout=5)
+    row = conn.execute("select 1 from subscriber where username=?", (user,)).fetchone()
+    conn.close()
+    return row is not None
+
+
+def ext_add(user, pwd):
+    if not EXT_NUM_RE.match(user):
+        return "分机号需为 1000-1999 的 4 位数字（互拨路由只认 ^1[0-9]{3}$）"
+    if not EXT_PWD_RE.match(pwd):
+        return "密码需 6-32 位字母或数字"
+    if ext_exists(user):
+        return "分机 %s 已存在" % user
+    conn = sqlite3.connect(KAM_DB_PATH, timeout=5)
+    conn.execute("insert into subscriber (username,password,domain) values (?,?,?)",
+                 (user, pwd, "ec20-gw"))
+    conn.commit()
+    conn.close()
+    return ""
+
+
+def ext_setpass(user, pwd):
+    if not EXT_NUM_RE.match(user):
+        return "分机号不合法"
+    if not EXT_PWD_RE.match(pwd):
+        return "密码需 6-32 位字母或数字"
+    if not ext_exists(user):
+        return "分机 %s 不存在" % user
+    conn = sqlite3.connect(KAM_DB_PATH, timeout=5)
+    conn.execute("update subscriber set password=? where username=?", (pwd, user))
+    conn.commit()
+    conn.close()
+    return ""
+
+
+def ext_del(user):
+    if not EXT_NUM_RE.match(user):
+        return "分机号不合法"
+    rows = ext_list()
+    if rows is not None and len(rows) <= 1:
+        return "至少保留一个分机（防止面板/软手机全部失联）"
+    conn = sqlite3.connect(KAM_DB_PATH, timeout=5)
+    conn.execute("delete from subscriber where username=?", (user,))
+    conn.commit()
+    conn.close()
+    return ""
+
+
+def read_ext_ring():
+    try:
+        with open(EXT_CONF_PATH, "r", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("EXT_RING="):
+                    return line.strip().split("=", 1)[1].strip()
+    except FileNotFoundError:
+        pass
+    return ""
+
+
+def write_ext_ring(val):
+    """Update [globals] EXT_RING in extensions.conf and reload the dialplan."""
+    with open(EXT_CONF_PATH, "r", encoding="utf-8") as fh:
+        lines = fh.readlines()
+    out, replaced = [], False
+    for line in lines:
+        if line.startswith("EXT_RING="):
+            out.append("EXT_RING=%s\n" % val)
+            replaced = True
+        else:
+            out.append(line)
+    if not replaced:
+        out.append("EXT_RING=%s\n" % val)
+    tmp = EXT_CONF_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.writelines(out)
+    os.replace(tmp, EXT_CONF_PATH)
+    return run_cmd(["asterisk", "-rx", "dialplan reload"], timeout=30)[0]
+
+
 # -------------------------------------------------------------------- views --
 STYLE = """
   body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
@@ -196,7 +295,7 @@ STYLE = """
 def layout(title, body, flash=""):
     nav = """
   <nav><b>ec20-gateway</b>
-    <a href="/">仪表盘</a><a href="/sms">短信</a><a href="/logs">日志</a>
+    <a href="/">仪表盘</a><a href="/sms">短信</a><a href="/exts">分机</a><a href="/logs">日志</a>
     <a href="/config">配置</a><a href="/logout">退出</a>
   </nav>"""
     flash_html = '<div class="flash">%s</div>' % html.escape(flash) if flash else ""
@@ -352,6 +451,64 @@ def page_config(sess):
     return layout("config", body)
 
 
+def page_exts(sess, flash="", is_err=False):
+    rows = ext_list()
+    rows_html = ""
+    if rows is None:
+        rows_html = "<tr><td colspan='4' class='bad'>无法读取 %s</td></tr>" % KAM_DB_PATH
+    else:
+        for user, pwd, dom in rows:
+            rows_html += """
+<tr>
+  <td>%s</td><td>%s</td><td class='muted'>%s</td>
+  <td>
+    <form class='inline' method='post' action='/exts/passwd'>%s
+      <input type='hidden' name='ext' value='%s'>
+      <input name='newpass' placeholder='新密码' size='16' pattern='[A-Za-z0-9]{6,32}' required>
+      <button type='submit'>改密</button>
+    </form>
+    <form class='inline' method='post' action='/exts/del'>%s
+      <input type='hidden' name='ext' value='%s'>
+      <button type='submit' class='bad'>删除</button>
+    </form>
+  </td>
+</tr>""" % (html.escape(user), html.escape(pwd), html.escape(dom or "ec20-gw"),
+            csrf_input(sess), html.escape(user),
+            csrf_input(sess), html.escape(user))
+
+    ring = read_ext_ring()
+    body = """
+<h2>SIP 分机（Kamailio subscriber，改动即时生效，无需重启）</h2>
+<table><tr><th>分机</th><th>密码</th><th>域</th><th>操作</th></tr>%s</table>
+<p class="muted">软手机注册参数：服务器 <b>192.168.1.188:5060</b>（填板子 IP），realm/域 <b>ec20-gw</b>，编解码 alaw。</p>
+
+<div class="card">
+  <h2>添加分机</h2>
+  <form method="post" action="/exts/add">
+    %s
+    <input name="ext" placeholder="分机号 (1000-1999)" pattern="1[0-9]{3}" required>
+    <input name="pass" placeholder="密码（留空自动生成）" size="24">
+    <button type="submit">添加</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>来电振铃分机（EXT_RING）</h2>
+  <form method="post" action="/exts/ring">
+    %s
+    <input name="ring" value="%s" size="30" pattern="1[0-9]{3}(&amp;1[0-9]{3})*"
+           placeholder="1001&amp;1002" required>
+    <button type="submit">保存并重载拨号计划</button>
+  </form>
+  <p class="muted">多个分机用 &amp; 连接；手机来电时这些分机同时振铃。保存即执行 asterisk dialplan reload。</p>
+</div>
+""" % (rows_html, csrf_input(sess), csrf_input(sess), html.escape(ring))
+    if flash:
+        cls = "flash errflash" if is_err else "flash"
+        body = "<div class='%s'>%s</div>" % (cls, html.escape(flash)) + body
+    return layout("exts", body)
+
+
 # ------------------------------------------------------------------ handlers --
 class Handler(BaseHTTPRequestHandler):
     server_version = "ec20gw/1.0"
@@ -409,6 +566,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, page_dashboard(sess))
         elif path == "/sms":
             self._send(200, page_sms(sess))
+        elif path == "/exts":
+            self._send(200, page_exts(sess))
         elif path == "/logs":
             sel = parse_qs(urlsplit(self.path).query).get("type", ["gateway"])[0]
             sel = sel if any(n == sel for n, _ in LOG_CANDIDATES) else "gateway"
@@ -460,6 +619,49 @@ class Handler(BaseHTTPRequestHandler):
             rc, out = run_cmd(["/usr/local/sbin/sms_send_cli.sh", dest, b64], timeout=30)
             self._send(200, layout("sms", "<div class='flash'>发送 rc=%d %s</div>" % (
                 rc, html.escape(out.strip()[:300]))) + page_sms(sess))
+            return
+
+        if path == "/exts/add":
+            user = form.get("ext", [""])[0].strip()
+            pwd = form.get("pass", [""])[0].strip()
+            if not pwd:
+                pwd = os.urandom(8).hex()  # 16-char random
+            errm = ext_add(user, pwd)
+            if errm:
+                self._send(200, page_exts(sess, errm, is_err=True))
+            else:
+                self._send(200, page_exts(sess, "分机 %s 已添加，密码 %s" % (user, pwd)))
+            return
+
+        if path == "/exts/passwd":
+            user = form.get("ext", [""])[0].strip()
+            pwd = form.get("newpass", [""])[0].strip()
+            errm = ext_setpass(user, pwd)
+            if errm:
+                self._send(200, page_exts(sess, errm, is_err=True))
+            else:
+                self._send(200, page_exts(sess, "分机 %s 密码已更新（正在注册的软手机需改密码重新注册）" % user))
+            return
+
+        if path == "/exts/del":
+            user = form.get("ext", [""])[0].strip()
+            errm = ext_del(user)
+            if errm:
+                self._send(200, page_exts(sess, errm, is_err=True))
+            else:
+                self._send(200, page_exts(sess, "分机 %s 已删除" % user))
+            return
+
+        if path == "/exts/ring":
+            val = form.get("ring", [""])[0].strip()
+            if not EXT_RING_RE.match(val):
+                self._send(200, page_exts(sess, "振铃列表格式错误：分机用 & 连接，如 1001&1002", is_err=True))
+                return
+            rc = write_ext_ring(val)
+            if rc:
+                self._send(200, page_exts(sess, "已写入配置，dialplan reload rc=%d" % rc, is_err=True))
+            else:
+                self._send(200, page_exts(sess, "振铃分机已更新为 %s（dialplan reloaded）" % val))
             return
 
         if path == "/config/save":
