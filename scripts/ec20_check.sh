@@ -27,12 +27,14 @@ else
   WARN "/dev/ec20-at missing (udev rule not applied yet?); falling back"
   if [[ -e /dev/ttyUSB2 ]]; then OK "fallback AT port: /dev/ttyUSB2"; else FAIL "no /dev/ttyUSB2"; fi
 fi
-if grep -qiE 'ec20|usb-audio' /proc/asound/cards 2>/dev/null; then
-  OK "UAC sound card: $(grep -iE 'ec20|usb-audio' /proc/asound/cards | head -n1 | sed 's/^[[:space:]]*//')"
+# timeout-wrapped: vendor kernels (hisi 4.4 histb) can hang reading /proc/asound/cards
+asnd="$(timeout -k 1 3 grep -iE 'ec20|usb-audio' /proc/asound/cards 2>/dev/null | head -n1)" || asnd=""
+if [[ -n "$asnd" ]]; then
+  OK "UAC sound card: $(printf '%s' "$asnd" | sed 's/^[[:space:]]*//')"
   q="$(grep -E '^alsadev' /etc/asterisk/quectel.conf 2>/dev/null | cut -d= -f2-)"
   [[ -n "$q" ]] && OK "quectel.conf alsadev: $q"
 else
-  FAIL "/proc/asound/cards has no EC20/USB-Audio entry (firmware UAC support?)"
+  FAIL "/proc/asound/cards has no EC20/USB-Audio entry (firmware UAC support? or kernel hangs reading it)"
 fi
 
 hdr "services"

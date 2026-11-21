@@ -312,11 +312,12 @@ probe_devices() {
   [[ -e "$AT_PORT" ]] || { AT_PORT="/dev/ttyUSB2"; warn "AT port not found; defaulting to $AT_PORT (plug EC20, rerun if needed)"; }
   log "AT port: $AT_PORT"
 
-  # ALSA card: EC20 UAC card name from /proc/asound/cards (e.g. EC20CEHDLG)
+  # ALSA card: EC20 UAC card name (e.g. EC20CEHDLG). Wrapped in timeout —
+  # vendor kernels (hisi 4.4 histb) can hang reading /proc/asound/cards.
   local card_name=""
-  card_name="$(grep -iE 'ec20' /proc/asound/cards 2>/dev/null | head -n1 | sed -n 's/^ *[0-9]* *\[\([^]]*\) *\].*/\1/p')"
-  if [[ -z "$card_name" ]]; then
-    card_name="$(grep -iE 'usb-audio' /proc/asound/cards 2>/dev/null | head -n1 | sed -n 's/^ *[0-9]* *\[\([^]]*\) *\].*/\1/p')"
+  if [[ -r /proc/asound/cards ]]; then
+    card_name="$(timeout -k 1 3 grep -iE 'ec20|usb-audio' /proc/asound/cards 2>/dev/null \
+                 | head -n1 | sed -n 's/^ *[0-9]* *\[\([^]]*\) *\].*/\1/p')" || true
   fi
   if [[ -n "$card_name" ]]; then
     ALSADEV="plughw:CARD=${card_name},DEV=0"
