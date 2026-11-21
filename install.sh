@@ -120,8 +120,8 @@ setup_swap() {
 # --- stage 1: packages --------------------------------------------------------
 APT_PACKAGES_COMMON=(curl wget jq openssl sqlite3 patch udev msmtp ca-certificates)
 APT_PACKAGES_TRIM=(build-essential libncurses5-dev libedit-dev libssl-dev libxml2-dev \
-                   libsqlite3-dev uuid-dev libjansson-dev pkg-config autoconf automake \
-                   libtool bison flex git)
+                   libsqlite3-dev uuid-dev libjansson-dev libasound2-dev pkg-config \
+                   autoconf automake libtool bison flex git)
 APT_PACKAGES_APT=(asterisk asterisk-modules asterisk-dev)
 
 install_packages() {

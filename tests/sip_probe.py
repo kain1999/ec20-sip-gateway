@@ -148,8 +148,9 @@ def req(method, uri, cseq, extra="", body="", ctype="application/sdp", to_uri=No
 
 # ---------------------------------------------------------------- 1) REGISTER -
 reg_uri = "sip:%s:%d" % (HOST, PORT)
+reg_aor = "sip:%s@%s" % (USER, HOST)  # To URI must carry the AOR user part
 r1 = tx_until(lambda t: status(t) in (200, 401),
-              req("REGISTER", reg_uri, 1, "Expires: 300\r\n"), tries=5)
+              req("REGISTER", reg_uri, 1, "Expires: 300\r\n", to_uri=reg_aor), tries=5)
 if not r1:
     fail("REGISTER probe", "no response from kamailio on 5060")
 if status(r1) == 200:
@@ -160,7 +161,7 @@ else:
     print("[probe] authz header: %s" % authz.strip())
     drain()  # drop stale 401 retransmit copies before starting transaction #2
     r2 = tx_until(lambda t: status(t) in (200, 401, 403),
-                  req("REGISTER", reg_uri, 2, authz + "Expires: 300\r\n"), tries=5)
+                  req("REGISTER", reg_uri, 2, authz + "Expires: 300\r\n", to_uri=reg_aor), tries=5)
     st = status(r2)
     if st == 200:
         ok("REGISTER digest auth -> 200 (realm %s)" % (re.search(r'realm="([^"]+)"', auth).group(1) if auth else "?"))
