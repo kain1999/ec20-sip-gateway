@@ -1,0 +1,8 @@
+# frps — run on your PUBLIC VPS (frp >= 0.52)
+#   curl -LO https://github.com/fatedier/frp/releases/download/v0.61.1/frp_0.61.1_linux_amd64.tar.gz
+#   ./frps -c frps.toml
+# Open firewall for: 7000/tcp (frp control), 5060/udp, 10000-10009/udp, 18090/tcp
+bindAddr = "0.0.0.0"
+bindPort = 7000
+
+auth.token = "CHANGE_ME_TO_A_LONG_RANDOM_TOKEN"

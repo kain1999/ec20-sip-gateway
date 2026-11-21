@@ -1,0 +1,101 @@
+# frpc — run on the EC20 gateway board (frp >= 0.52)
+#   1) cp frpc.example.toml frpc.toml   then set serverAddr + auth.token
+#   2) ./frpc -c frpc.toml              (install as systemd unit for boot start)
+# Softphone then registers to  VPS_IP:5060 (transport UDP);
+# web panel is at  http://VPS_IP:18090
+#
+# RTP note: this file forwards UDP 10000-10009. Align Asterisk by editing
+# /etc/asterisk/rtp.conf  ->  rtpstart=10000, rtpend=10009 (5 concurrent calls),
+# then `asterisk -rx "core restart now"`. Need more calls? Add more proxies
+# below and widen rtpend to match.
+#
+# NAT note: enable the external_media_address lines in /etc/asterisk/pjsip.conf
+# (transport-udp section) and set them to VPS_IP, then restart asterisk.
+
+serverAddr = "VPS_IP"
+serverPort = 7000
+auth.token = "CHANGE_ME_TO_A_LONG_RANDOM_TOKEN"
+
+[[proxies]]
+name = "web-panel"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8090
+remotePort = 18090
+
+[[proxies]]
+name = "sip-signaling"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 5060
+remotePort = 5060
+
+[[proxies]]
+name = "rtp-10000"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10000
+remotePort = 10000
+
+[[proxies]]
+name = "rtp-10001"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10001
+remotePort = 10001
+
+[[proxies]]
+name = "rtp-10002"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10002
+remotePort = 10002
+
+[[proxies]]
+name = "rtp-10003"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10003
+remotePort = 10003
+
+[[proxies]]
+name = "rtp-10004"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10004
+remotePort = 10004
+
+[[proxies]]
+name = "rtp-10005"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10005
+remotePort = 10005
+
+[[proxies]]
+name = "rtp-10006"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10006
+remotePort = 10006
+
+[[proxies]]
+name = "rtp-10007"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10007
+remotePort = 10007
+
+[[proxies]]
+name = "rtp-10008"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10008
+remotePort = 10008
+
+[[proxies]]
+name = "rtp-10009"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 10009
+remotePort = 10009

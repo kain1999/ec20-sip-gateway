@@ -141,8 +141,8 @@ install_packages() {
     log "apt-get install asterisk (binary mode)"
     apt-get install -y "${APT_PACKAGES_APT[@]}"
   fi
-  log "apt-get install kamailio + sqlite driver"
-  apt-get install -y kamailio kamailio-sqlite-modules || {
+  log "apt-get install kamailio + sqlite driver + nathelper"
+  apt-get install -y kamailio kamailio-sqlite-modules kamailio-nathelper || {
     err "kamailio install failed; check sources.list has universe"; exit 1;
   }
   # modem manager grabs the EC20 AT port and fights chan_quectel
