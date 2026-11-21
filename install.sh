@@ -106,9 +106,16 @@ setup_swap() {
   mem_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
   swap_total="$(awk '/SwapTotal/{print $2}' /proc/meminfo)"
   if [[ "${swap_total:-0}" -ge 1000000 ]]; then log "swap >= 1G already present"; return; fi
+  if [[ "${swap_total:-0}" -gt 0 ]]; then
+    log "swap already present (${swap_total}KB) — keeping it"
+    return
+  fi
   if [[ "$mem_kb" -gt 900000 ]]; then log "RAM > 900MB, swap optional; creating 1G anyway for safety"; fi
   log "creating 1G swapfile /swapfile (protects Asterisk compile on 500MB boards)"
-  if [[ -e /swapfile ]]; then rm -f /swapfile; fi
+  if [[ -e /swapfile ]]; then
+    swapoff /swapfile 2>/dev/null || true
+    rm -f /swapfile || { warn "cannot replace /swapfile (in use) — continuing with existing swap"; return; }
+  fi
   dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none
   chmod 600 /swapfile
   mkswap -q /swapfile
